@@ -49,17 +49,33 @@ def bot_reply(ctx, smtp, fallback_delivto):
 
     recom = account.get_recommendation([From], reply_to_encrypted)
     ui_recommendation = recom.ui_recommendation()
+    i_will_encrypt = ui_recommendation == 'encrypt'
 
     if ac:
         if not reply_to_encrypted:
-            m = """
-you have successfully installed an Autocrypt-capable mail client and
-sent a mail to me.  I was able to encrypting my reply to you.  If you
-reply to this mail, then your reply will also be encrypted.
+            if i_will_encrypt:
+                m = """
+You have successfully installed an Autocrypt-capable mail client and
+sent an email to me.  I am sending you this email encrypted.
+
+If you reply to this email, your reply will also be encrypted.
+
+Well done!
 """
-        else:
+            else:
+                m = """
+You have successfully installed an Autocrypt-capable mail client and
+sent an email to me.  It is now possible for me to send you encrypted
+email.
+
+If you send me an encrypted email I will reply encrypted.
+"""
+        else: # reply_to_encrypted
             m = """
-you have successfully written an encrypted mail to me.
+Thanks for the encrypted mail.  Now we are having an encrypted email
+conversation.
+
+Well done!
 """
     else: # not ac
         if not reply_to_encrypted:
@@ -67,8 +83,8 @@ you have successfully written an encrypted mail to me.
 I do not believe that you are using an Autocrypt-capable mail client.
 """
         else:
-            m = """ 
-you encrypted a mail to me, but you are not using an
+            m = """
+You encrypted a mail to me, but you are not using an
 Autocrypt-capable mail client.  You certainly are an OpenPGP ninja.
 """
 
