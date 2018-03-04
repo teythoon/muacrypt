@@ -41,61 +41,49 @@ def bot_reply(ctx, smtp, fallback_delivto):
     account_manager = get_account_manager(ctx)
     msg = mime.parse_message_from_file(sys.stdin)
     From = msg["From"]
-
-    log = SimpleLog()
-    with log.s("reading headers", raising=True):
-        delivto = mime.get_delivered_to(msg, fallback_delivto)
-        log("determined Delivered-To: " + delivto)
-
-    maxheadershow = 60
-
-    with log.s("Got your mail, here is what i found in headers:"):
-        for hn in ("Message-ID Delivered-To From To Subject "
-                   "Date DKIM-Signature Autocrypt").split():
-            if hn in msg:
-                value = trunc_string(msg.get(hn).replace("\n", "\\n"), maxheadershow)
-                log("{:15s} {}".format(hn + ":", value))
-            else:
-                log("{:15s} NOTFOUND".format(hn))
-
-    with log.s("And this is the mime structure i saw:"):
-        log(mime.render_mime_structure(msg))
-
+    reply_to_encrypted = msg.get_content_type() == "multipart/encrypted"
+    ac = 'Autocrypt' in msg
+    delivto = mime.get_delivered_to(msg, fallback_delivto)
     account = account_manager.get_account_from_emailadr(delivto)
     r = account.process_incoming(msg)
-    with log.s("processed incoming mail for account {}:".format(r.account.name)):
-        if r.pah.error:
-            log(r.pah.error)
-        else:
-            ps = r.peerstate
-            log("found peeraddr={} keyhandle={} prefer_encrypt={}".format(
-                ps.addr, ps.public_keyhandle, ps.prefer_encrypt))
-
-    log("\n")
-    reply_to_encrypted = False
-    if msg.get_content_type() == "multipart/encrypted":
-        log("Your message was encrypted.")
-        decrypted = account.decrypt_mime(msg)
-        log("It was encrypted to the following keys:{}".format(
-            decrypted.keyinfos))
-        reply_to_encrypted = True
-
-    log("have a nice day, {}".format(delivto))
-    log("")
-    log("P.S.: my current key {} is in the Autocrypt header of this reply."
-        .format(r.account.ownstate.keyhandle))
 
     recom = account.get_recommendation([From], reply_to_encrypted)
     ui_recommendation = recom.ui_recommendation()
-    log("P.P.S.: For this reply the encryption recommendation is {}"
-        .format(ui_recommendation))
+
+    if ac:
+        if not reply_to_encrypted:
+            m = """
+you have successfully installed an Autocrypt-capable mail client and
+sent a mail to me.  I was able to encrypting my reply to you.  If you
+reply to this mail, then your reply will also be encrypted.
+"""
+        else:
+            m = """
+you have successfully written an encrypted mail to me.
+"""
+    else: # not ac
+        if not reply_to_encrypted:
+            m = """
+I do not believe that you are using an Autocrypt-capable mail client.
+"""
+        else:
+            m = """ 
+you encrypted a mail to me, but you are not using an
+Autocrypt-capable mail client.  You certainly are an OpenPGP ninja.
+"""
+
+    m = """Hello {0} :)
+{1}
+
+Enjoy the rest of the IFF :)
+""".format(From, m)
 
     reply_msg = mime.gen_mail_msg(
         From=delivto, To=[From],
         Subject="Re: " + msg["Subject"],
         _extra={"In-Reply-To": msg["Message-ID"]},
         Autocrypt=account.make_ac_header(delivto),
-        payload=six.text_type(log), charset="utf8",
+        payload=six.text_type(m), charset="utf8",
     )
     if ui_recommendation == 'encrypt':
         r = account.encrypt_mime(reply_msg, [From])
