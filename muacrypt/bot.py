@@ -22,11 +22,17 @@ def send_reply(host, port, msg):
     smtp = smtplib.SMTP(host, port)
     return smtp.sendmail(msg["From"], msg["To"], msg.as_string())
 
+def sendmail_reply(msg):
+    import sendmail
+    s = sendmail.Sendmail()
+    return s.sendmail(msg["From"], msg["To"], msg.as_string())
+
 
 @mycommand("bot-reply")
 @click.option("--smtp", default=None, metavar="host,port",
               help="host and port where the reply should be "
-                   "instead of to stdout.")
+                   "instead of to stdout.  If you specify "
+                   "'sendmail', we will use sendmail to send mail.")
 @click.option("--fallback-delivto", default=None,
               help="assume delivery to the specified email address if "
                    "no delivered-to header is found.")
@@ -104,7 +110,10 @@ Enjoy the rest of the IFF :)
     if ui_recommendation == 'encrypt':
         r = account.encrypt_mime(reply_msg, [From])
         reply_msg = r.enc_msg
-    if smtp:
+    if smtp == 'sendmail':
+        sendmail_reply(reply_msg)
+        click.echo("send reply through sendmail")
+    elif smtp:
         host, port = smtp.split(",")
         send_reply(host, int(port), reply_msg)
         click.echo("send reply through smtp: {}".format(smtp))
